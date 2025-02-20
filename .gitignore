@@ -1,0 +1,4 @@
+raw_data/ref_data/*.gz
+raw_data/sample_data/*.gz
+results/fastqc/*.html
+results/fastqc/*.zip
