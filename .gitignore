@@ -1,4 +1,9 @@
+.snakemake/
 raw_data/ref_data/*.gz
 raw_data/sample_data/*.gz
 results/fastqc/*.html
 results/fastqc/*.zip
+results/minimap/*.sam
+results/picard/*.bam
+results/picard/*.bai
+results/picard/*.txt
