@@ -5,20 +5,26 @@ configfile: "config/config.yml"
 
 URL_SAMPLE = config['download_url_sample']
 URL_REF = config['download_url_ref']
+SAMPLES = config['samples']
 REFERENCE_FILE = config['reference_file']
 REF_FILE_NAME = utils.remove_all_extensions(os.path.basename(REFERENCE_FILE))
 RAW_DATA_SAMPLE_DIR = config['raw_data_sample_dir']
 FASTQC_DIR = config['fastqc_dir']
 MINIMAP_DIR = config['minimap_dir']
 PICARD_DIR = config['picard_dir']
+MULTIQC_DIR = config['multiqc_dir']
 
 rule all:
     input:
-        expand(f"{RAW_DATA_SAMPLE_DIR}/{{sample}}.fastq.gz", sample=config['samples']),
-        REFERENCE_FILE,
-        expand(f"{FASTQC_DIR}/{{sample}}_fastqc.html", sample=config['samples']),
-        expand(f"{MINIMAP_DIR}/{{sample}}.{REF_FILE_NAME}_align.sam", sample=config['samples']),
-        expand(f"{PICARD_DIR}/{{sample}}_coord_sorted.bam", sample=config['samples'])
+        #expand(f"{RAW_DATA_SAMPLE_DIR}/{{sample}}.fastq.gz", sample=config['samples']),
+        #REFERENCE_FILE,
+        #expand(f"{FASTQC_DIR}/{{sample}}_fastqc.html", sample=config['samples']),
+        #expand(f"{MINIMAP_DIR}/{{sample}}.{REF_FILE_NAME}_align.sam", sample=config['samples']),
+        #expand(f"{PICARD_DIR}/{{sample}}_coord_sorted.bam", sample=config['samples'])
+        #expand(f"{PICARD_DIR}/{{sample}}_align_summary_metrics.txt", sample=config['samples'])
+        expand(f"{MULTIQC_DIR}/multiqc_report.html", sample=SAMPLES)
+    #output:
+     #   expand(f"{PICARD_DIR}/{{sample}}_align_summary_metrics.txt", sample=config['samples'])
 
 rule download_sample_data:
     output: f"{RAW_DATA_SAMPLE_DIR}/{{sample}}.fastq.gz"
@@ -73,3 +79,10 @@ rule process_sam:
             --REFERENCE_SEQUENCE {REFERENCE_FILE} \
             --OUTPUT {output.align_summary_metrics}
         """
+
+rule aggregate_qc:
+    input:
+        align_summary_metrics=expand(f"{PICARD_DIR}/{{sample}}_align_summary_metrics.txt", sample=SAMPLES),
+        fastqc=expand(f"{FASTQC_DIR}/{{sample}}_fastqc.zip", sample=SAMPLES)
+    output: f"{MULTIQC_DIR}/multiqc_report.html"
+    shell: "multiqc {input} --outdir {MULTIQC_DIR}"
