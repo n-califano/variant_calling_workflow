@@ -1,0 +1,8 @@
+download_url_sample: "https://osf.io/4rdza/download"
+download_url_ref: "https://osf.io/8sm92/download"
+samples: ["SRR2584857_1", "SRR2584857_2"]
+raw_data_sample_dir: "raw_data/sample_data"
+reference_file: "raw_data/ref_data/ecoli-rel606.fa.gz"
+fastqc_dir: "results/fastqc"
+minimap_dir: "results/minimap"
+picard_dir: "results/picard"
