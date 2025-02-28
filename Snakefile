@@ -47,7 +47,8 @@ rule process_sam:
         dedup=f"{PICARD_DIR}/{{sample}}_dedup.bam",
         metrics=f"{PICARD_DIR}/{{sample}}_metrics.txt",
         coord_sorted=f"{PICARD_DIR}/{{sample}}_coord_sorted.bam",
-        coord_sorted_index=f"{PICARD_DIR}/{{sample}}_coord_sorted.bai"
+        coord_sorted_index=f"{PICARD_DIR}/{{sample}}_coord_sorted.bai",
+        align_summary_metrics=f"{PICARD_DIR}/{{sample}}_align_summary_metrics.txt"
     shell:
         """
         picard SortSam \
@@ -66,4 +67,9 @@ rule process_sam:
             --OUTPUT {output.coord_sorted} \
             --SORT_ORDER coordinate \
             --CREATE_INDEX true
+
+        picard CollectAlignmentSummaryMetrics \
+            --INPUT {output.coord_sorted} \
+            --REFERENCE_SEQUENCE {REFERENCE_FILE} \
+            --OUTPUT {output.align_summary_metrics}
         """
