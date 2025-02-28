@@ -8,3 +8,5 @@ results/minimap/*.sam
 results/picard/*.bam
 results/picard/*.bai
 results/picard/*.txt
+results/multiqc/multiqc_data/
+results/multiqc/*.html
