@@ -1,8 +1,9 @@
-download_url_sample: "https://osf.io/4rdza/download"
-download_url_ref: "https://osf.io/8sm92/download"
-samples: ["SRR2584857_1", "SRR2584857_2"]
+download_url_sample: "https://github.com/hartwigmedical/testdata/raw/refs/heads/master/cancerPanel/CPCT12345678R" #"https://osf.io/4rdza/download"
+download_url_ref: "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/hg38Patch7/hg38Patch7.fa.gz" #"https://osf.io/8sm92/download"
+samples: ["CPCT12345678R_AHHKYHDSXX_S13_L001_R1_001", "CPCT12345678R_AHHKYHDSXX_S13_L001_R2_001"]
 raw_data_sample_dir: "raw_data/sample_data"
-reference_file: "raw_data/ref_data/ecoli-rel606.fa.gz"
+raw_data_ref_dir: "raw_data/ref_data"
+reference_file: "raw_data/ref_data/hg38Patch7.fa.gz" #"raw_data/ref_data/ecoli-rel606.fa.gz"
 fastqc_dir: "results/fastqc"
 minimap_dir: "results/minimap"
 picard_dir: "results/picard"
