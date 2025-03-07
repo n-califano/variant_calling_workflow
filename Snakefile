@@ -8,6 +8,7 @@ URL_REF = config['download_url_ref']
 SAMPLES = config['samples']
 REFERENCE_FILE = config['reference_file']
 REF_FILE_NAME = utils.remove_all_extensions(os.path.basename(REFERENCE_FILE))
+RAW_DATA_REF_DIR = config['raw_data_ref_dir']
 RAW_DATA_SAMPLE_DIR = config['raw_data_sample_dir']
 FASTQC_DIR = config['fastqc_dir']
 MINIMAP_DIR = config['minimap_dir']
@@ -17,22 +18,27 @@ MULTIQC_DIR = config['multiqc_dir']
 rule all:
     input:
         #expand(f"{RAW_DATA_SAMPLE_DIR}/{{sample}}.fastq.gz", sample=config['samples']),
-        #REFERENCE_FILE,
+        REFERENCE_FILE,
         #expand(f"{FASTQC_DIR}/{{sample}}_fastqc.html", sample=config['samples']),
         #expand(f"{MINIMAP_DIR}/{{sample}}.{REF_FILE_NAME}_align.sam", sample=config['samples']),
         #expand(f"{PICARD_DIR}/{{sample}}_coord_sorted.bam", sample=config['samples'])
         #expand(f"{PICARD_DIR}/{{sample}}_align_summary_metrics.txt", sample=config['samples'])
-        expand(f"{MULTIQC_DIR}/multiqc_report.html", sample=SAMPLES)
+        expand(f"{MULTIQC_DIR}/multiqc_report.html", sample=SAMPLES),
+        f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.dict"
     #output:
      #   expand(f"{PICARD_DIR}/{{sample}}_align_summary_metrics.txt", sample=config['samples'])
 
 rule download_sample_data:
     output: f"{RAW_DATA_SAMPLE_DIR}/{{sample}}.fastq.gz"
-    shell: "wget -O {output} {URL_SAMPLE}"
+    params: 
+        sample_url=f"{URL_SAMPLE}/{{sample}}.fastq.gz"
+    shell: "wget -O {output} {params.sample_url}"
 
 rule download_ref_data:
     output: REFERENCE_FILE
-    shell: "wget -O {output} {URL_REF}"
+    params: 
+        ref_url=URL_REF
+    shell: "wget -O {output} {params.ref_url}"
 
 rule run_fastqc:
     input: f"{RAW_DATA_SAMPLE_DIR}/{{sample}}.fastq.gz"
@@ -86,3 +92,23 @@ rule aggregate_qc:
         fastqc=expand(f"{FASTQC_DIR}/{{sample}}_fastqc.zip", sample=SAMPLES)
     output: f"{MULTIQC_DIR}/multiqc_report.html"
     shell: "multiqc {input} --outdir {MULTIQC_DIR}"
+
+rule create_reference_index:
+    input: REFERENCE_FILE
+    output: 
+        unzipped_ref_file=f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.fa",
+        ref_index_file=f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.fa.fai"
+    shell: 
+        """
+        gunzip -c {input} > {output.unzipped_ref_file}
+        samtools faidx {output.unzipped_ref_file}
+        """
+
+rule create_reference_dict:
+    input: 
+        unzipped_ref_file=f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.fa"
+    output: 
+        ref_dictionary=f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.dict"
+    shell: "picard CreateSequenceDictionary \
+                --REFERENCE {input.unzipped_ref_file} \
+                --OUTPUT {output.ref_dictionary}"
