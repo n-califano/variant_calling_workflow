@@ -1,6 +1,8 @@
 **/__pycache__/
 .snakemake/
 raw_data/ref_data/*.gz
+raw_data/ref_data/*.dict
+raw_data/ref_data/*.fa*
 raw_data/sample_data/*.gz
 results/fastqc/*.html
 results/fastqc/*.zip
