@@ -55,7 +55,8 @@ rule align_reads:
     params:
         sample=f"{{sample}}"
     output: f"{MINIMAP_DIR}/{{sample}}.{REF_FILE_NAME}_align.sam"
-    shell: "minimap2 -ax sr -R '@RG\\tID:{params.sample}\\tSM:{params.sample}\\tPL:illumina' {REFERENCE_FILE} {input} > {output}"
+    shell: "minimap2 -ax sr -R '@RG\\tID:{params.sample}\\tSM:{params.sample}' {REFERENCE_FILE} {input} > {output}"
+    #old version: -R '@RG\\tID:{params.sample}\\tSM:{params.sample}\\tPL:illumina'  the PL part seems to not be necessary
 
 rule process_sam:
     input:
