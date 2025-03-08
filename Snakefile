@@ -5,7 +5,8 @@ configfile: "config/config.yml"
 
 URL_SAMPLE = config['download_url_sample']
 URL_REF = config['download_url_ref']
-SAMPLES = config['samples']
+TUMOR_NORMAL_PAIRS = config['tumor_normal_pairs']
+ALL_SAMPLES = [sample for pair in TUMOR_NORMAL_PAIRS.items() for sample in pair]
 REFERENCE_FILE = config['reference_file']
 REF_FILE_NAME = utils.remove_all_extensions(os.path.basename(REFERENCE_FILE))
 RAW_DATA_REF_DIR = config['raw_data_ref_dir']
@@ -14,6 +15,7 @@ FASTQC_DIR = config['fastqc_dir']
 MINIMAP_DIR = config['minimap_dir']
 PICARD_DIR = config['picard_dir']
 MULTIQC_DIR = config['multiqc_dir']
+GATK_DIR = config['gatk_dir']
 
 rule all:
     input:
@@ -23,8 +25,10 @@ rule all:
         #expand(f"{MINIMAP_DIR}/{{sample}}.{REF_FILE_NAME}_align.sam", sample=config['samples']),
         #expand(f"{PICARD_DIR}/{{sample}}_coord_sorted.bam", sample=config['samples'])
         #expand(f"{PICARD_DIR}/{{sample}}_align_summary_metrics.txt", sample=config['samples'])
-        expand(f"{MULTIQC_DIR}/multiqc_report.html", sample=SAMPLES),
-        f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.dict"
+        expand(f"{MULTIQC_DIR}/multiqc_report.html", sample=ALL_SAMPLES),
+        f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.dict",
+        #expand(f"{GATK_DIR}/{{sample}}.vcf", sample=ALL_SAMPLES)
+        expand(f"{GATK_DIR}/{{tumor}}_vs_{{normal}}.vcf", tumor=TUMOR_NORMAL_PAIRS.keys(), normal=TUMOR_NORMAL_PAIRS.values())
     #output:
      #   expand(f"{PICARD_DIR}/{{sample}}_align_summary_metrics.txt", sample=config['samples'])
 
@@ -48,8 +52,10 @@ rule run_fastqc:
 
 rule align_reads:
     input: f"{RAW_DATA_SAMPLE_DIR}/{{sample}}.fastq.gz"
+    params:
+        sample=f"{{sample}}"
     output: f"{MINIMAP_DIR}/{{sample}}.{REF_FILE_NAME}_align.sam"
-    shell: "minimap2 -ax sr {REFERENCE_FILE} {input} > {output}"
+    shell: "minimap2 -ax sr -R '@RG\\tID:{params.sample}\\tSM:{params.sample}\\tPL:illumina' {REFERENCE_FILE} {input} > {output}"
 
 rule process_sam:
     input:
@@ -88,8 +94,8 @@ rule process_sam:
 
 rule aggregate_qc:
     input:
-        align_summary_metrics=expand(f"{PICARD_DIR}/{{sample}}_align_summary_metrics.txt", sample=SAMPLES),
-        fastqc=expand(f"{FASTQC_DIR}/{{sample}}_fastqc.zip", sample=SAMPLES)
+        align_summary_metrics=expand(f"{PICARD_DIR}/{{sample}}_align_summary_metrics.txt", sample=ALL_SAMPLES),
+        fastqc=expand(f"{FASTQC_DIR}/{{sample}}_fastqc.zip", sample=ALL_SAMPLES)
     output: f"{MULTIQC_DIR}/multiqc_report.html"
     shell: "multiqc {input} --outdir {MULTIQC_DIR}"
 
@@ -112,3 +118,27 @@ rule create_reference_dict:
     shell: "picard CreateSequenceDictionary \
                 --REFERENCE {input.unzipped_ref_file} \
                 --OUTPUT {output.ref_dictionary}"
+
+rule variant_calling:
+    input:
+        ref_dictionary=f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.dict",
+        unzipped_ref_file=f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.fa",
+        coord_sorted_normal_bam=f"{PICARD_DIR}/{{normal}}_coord_sorted.bam",
+        coord_sorted_tumor_bam=f"{PICARD_DIR}/{{tumor}}_coord_sorted.bam",
+    params:
+        normal_sample_name=f"{{normal}}",
+        tumor_sample_name=f"{{tumor}}"
+    output:
+        vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}.vcf"
+    shell:
+        """
+        gatk Mutect2 \
+            --sequence-dictionary {input.ref_dictionary} \
+            --reference {input.unzipped_ref_file} \
+            --input {input.coord_sorted_normal_bam} \
+            --normal-sample {params.normal_sample_name} \
+            --input {input.coord_sorted_tumor_bam} \
+            --tumor-sample {params.tumor_sample_name} \
+            --annotation ClippingRankSumTest --annotation DepthPerSampleHC --annotation MappingQualityRankSumTest --annotation MappingQualityZero --annotation QualByDepth --annotation ReadPosRankSumTest --annotation RMSMappingQuality --annotation FisherStrand --annotation MappingQuality --annotation DepthPerAlleleBySample --annotation Coverage \
+            --output {output.vcf_file}
+        """
