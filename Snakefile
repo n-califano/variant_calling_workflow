@@ -40,9 +40,7 @@ rule download_sample_data:
 
 rule download_ref_data:
     output: REFERENCE_FILE
-    params: 
-        ref_url=URL_REF
-    shell: "wget -O {output} {params.ref_url}"
+    shell: "wget -O {output} {URL_REF}"
 
 rule run_fastqc:
     input: f"{RAW_DATA_SAMPLE_DIR}/{{sample}}.fastq.gz"
@@ -52,10 +50,8 @@ rule run_fastqc:
 
 rule align_reads:
     input: f"{RAW_DATA_SAMPLE_DIR}/{{sample}}.fastq.gz"
-    params:
-        sample=f"{{sample}}"
     output: f"{MINIMAP_DIR}/{{sample}}.{REF_FILE_NAME}_align.sam"
-    shell: "minimap2 -ax sr -R '@RG\\tID:{params.sample}\\tSM:{params.sample}' {REFERENCE_FILE} {input} > {output}"
+    shell: "minimap2 -ax sr -R '@RG\\tID:{wildcards.sample}\\tSM:{wildcards.sample}' {REFERENCE_FILE} {input} > {output}"
     #old version: -R '@RG\\tID:{params.sample}\\tSM:{params.sample}\\tPL:illumina'  the PL part seems to not be necessary
 
 rule process_sam:
@@ -126,9 +122,6 @@ rule variant_calling:
         unzipped_ref_file=f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.fa",
         coord_sorted_normal_bam=f"{PICARD_DIR}/{{normal}}_coord_sorted.bam",
         coord_sorted_tumor_bam=f"{PICARD_DIR}/{{tumor}}_coord_sorted.bam",
-    params:
-        normal_sample_name=f"{{normal}}",
-        tumor_sample_name=f"{{tumor}}"
     output:
         vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}.vcf"
     shell:
@@ -137,9 +130,9 @@ rule variant_calling:
             --sequence-dictionary {input.ref_dictionary} \
             --reference {input.unzipped_ref_file} \
             --input {input.coord_sorted_normal_bam} \
-            --normal-sample {params.normal_sample_name} \
+            --normal-sample {wildcards.normal} \
             --input {input.coord_sorted_tumor_bam} \
-            --tumor-sample {params.tumor_sample_name} \
+            --tumor-sample {wildcards.tumor} \
             --annotation ClippingRankSumTest --annotation DepthPerSampleHC --annotation MappingQualityRankSumTest --annotation MappingQualityZero --annotation QualByDepth --annotation ReadPosRankSumTest --annotation RMSMappingQuality --annotation FisherStrand --annotation MappingQuality --annotation DepthPerAlleleBySample --annotation Coverage \
             --output {output.vcf_file}
         """
