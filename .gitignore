@@ -12,3 +12,4 @@ results/picard/*.bai
 results/picard/*.txt
 results/multiqc/multiqc_data/
 results/multiqc/*.html
+results/gatk/*.vcf*
