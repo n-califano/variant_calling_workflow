@@ -30,7 +30,7 @@ rule all:
         expand(f"{MULTIQC_DIR}/multiqc_report.html", sample=ALL_SAMPLES),
         f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.dict",
         #expand(f"{GATK_DIR}/{{sample}}.vcf", sample=ALL_SAMPLES)
-        expand(f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_filtered.vcf", tumor=TUMOR_NORMAL_PAIRS.keys(), normal=TUMOR_NORMAL_PAIRS.values())
+        expand(f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_snp_sift_filtered.vcf", tumor=TUMOR_NORMAL_PAIRS.keys(), normal=TUMOR_NORMAL_PAIRS.values())
     #output:
      #   expand(f"{PICARD_DIR}/{{sample}}_align_summary_metrics.txt", sample=config['samples'])
 
@@ -139,11 +139,17 @@ rule variant_filtering:
         UNZIPPED_REF_FILE,
         vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_raw.vcf"
     output:
-        filtered_vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_filtered.vcf"
+        mutect_filtered_vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_mutect_filtered.vcf",
+        snp_sift_filtered_vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_snp_sift_filtered.vcf"
     shell:
         """
         gatk FilterMutectCalls \
             --reference {UNZIPPED_REF_FILE} \
             --variant {input.vcf_file} \
-            --output {output.filtered_vcf_file}
+            --output {output.mutect_filtered_vcf_file}
+
+        SnpSift filter \
+            -noLog \
+            "( FILTER = 'PASS' )" \
+            {output.mutect_filtered_vcf_file} > {output.snp_sift_filtered_vcf_file}
         """
