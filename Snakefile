@@ -11,6 +11,8 @@ REFERENCE_FILE = config['reference_file']
 REF_FILE_NAME = utils.remove_all_extensions(os.path.basename(REFERENCE_FILE))
 RAW_DATA_REF_DIR = config['raw_data_ref_dir']
 RAW_DATA_SAMPLE_DIR = config['raw_data_sample_dir']
+UNZIPPED_REF_FILE = f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.fa"
+REF_DICTIONARY = f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.dict"
 FASTQC_DIR = config['fastqc_dir']
 MINIMAP_DIR = config['minimap_dir']
 PICARD_DIR = config['picard_dir']
@@ -28,7 +30,7 @@ rule all:
         expand(f"{MULTIQC_DIR}/multiqc_report.html", sample=ALL_SAMPLES),
         f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.dict",
         #expand(f"{GATK_DIR}/{{sample}}.vcf", sample=ALL_SAMPLES)
-        expand(f"{GATK_DIR}/{{tumor}}_vs_{{normal}}.vcf", tumor=TUMOR_NORMAL_PAIRS.keys(), normal=TUMOR_NORMAL_PAIRS.values())
+        expand(f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_filtered.vcf", tumor=TUMOR_NORMAL_PAIRS.keys(), normal=TUMOR_NORMAL_PAIRS.values())
     #output:
      #   expand(f"{PICARD_DIR}/{{sample}}_align_summary_metrics.txt", sample=config['samples'])
 
@@ -99,40 +101,49 @@ rule aggregate_qc:
 rule create_reference_index:
     input: REFERENCE_FILE
     output: 
-        unzipped_ref_file=f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.fa",
+        UNZIPPED_REF_FILE,
         ref_index_file=f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.fa.fai"
     shell: 
         """
-        gunzip -c {input} > {output.unzipped_ref_file}
-        samtools faidx {output.unzipped_ref_file}
+        gunzip -c {input} > {UNZIPPED_REF_FILE}
+        samtools faidx {UNZIPPED_REF_FILE}
         """
 
 rule create_reference_dict:
-    input: 
-        unzipped_ref_file=f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.fa"
-    output: 
-        ref_dictionary=f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.dict"
+    output: REF_DICTIONARY
     shell: "picard CreateSequenceDictionary \
-                --REFERENCE {input.unzipped_ref_file} \
-                --OUTPUT {output.ref_dictionary}"
+                --REFERENCE {UNZIPPED_REF_FILE} \
+                --OUTPUT {REF_DICTIONARY}"
 
 rule variant_calling:
     input:
-        ref_dictionary=f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.dict",
-        unzipped_ref_file=f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.fa",
         coord_sorted_normal_bam=f"{PICARD_DIR}/{{normal}}_coord_sorted.bam",
         coord_sorted_tumor_bam=f"{PICARD_DIR}/{{tumor}}_coord_sorted.bam",
     output:
-        vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}.vcf"
+        vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_raw.vcf"
     shell:
         """
         gatk Mutect2 \
-            --sequence-dictionary {input.ref_dictionary} \
-            --reference {input.unzipped_ref_file} \
+            --sequence-dictionary {REF_DICTIONARY} \
+            --reference {UNZIPPED_REF_FILE} \
             --input {input.coord_sorted_normal_bam} \
             --normal-sample {wildcards.normal} \
             --input {input.coord_sorted_tumor_bam} \
             --tumor-sample {wildcards.tumor} \
             --annotation ClippingRankSumTest --annotation DepthPerSampleHC --annotation MappingQualityRankSumTest --annotation MappingQualityZero --annotation QualByDepth --annotation ReadPosRankSumTest --annotation RMSMappingQuality --annotation FisherStrand --annotation MappingQuality --annotation DepthPerAlleleBySample --annotation Coverage \
             --output {output.vcf_file}
+        """
+
+rule variant_filtering:
+    input: 
+        UNZIPPED_REF_FILE,
+        vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_raw.vcf"
+    output:
+        filtered_vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_filtered.vcf"
+    shell:
+        """
+        gatk FilterMutectCalls \
+            --reference {UNZIPPED_REF_FILE} \
+            --variant {input.vcf_file} \
+            --output {output.filtered_vcf_file}
         """
