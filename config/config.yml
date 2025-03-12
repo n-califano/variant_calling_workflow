@@ -1,11 +1,11 @@
 download_url_sample: "https://github.com/hartwigmedical/testdata/raw/refs/heads/master/cancerPanel/CPCT12345678R" #"https://osf.io/4rdza/download"
 download_url_ref: "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/hg38Patch7/hg38Patch7.fa.gz" #"https://osf.io/8sm92/download"
+download_lcr_url: "https://github.com/lh3/varcmp/raw/refs/heads/master/scripts/LCR-hs38.bed.gz"
 tumor_normal_pairs:
   "CPCT12345678R_AHHKYHDSXX_S13_L001_R1_001": "CPCT12345678R_HJJLGCCXX_S1_L001_R1_001"
   "CPCT12345678R_AHHKYHDSXX_S13_L001_R2_001": "CPCT12345678R_HJJLGCCXX_S1_L001_R2_001"
 raw_data_sample_dir: "raw_data/sample_data"
 raw_data_ref_dir: "raw_data/ref_data"
-reference_file: "raw_data/ref_data/hg38Patch7.fa.gz" #"raw_data/ref_data/ecoli-rel606.fa.gz"
 fastqc_dir: "results/fastqc"
 minimap_dir: "results/minimap"
 picard_dir: "results/picard"
