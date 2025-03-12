@@ -5,19 +5,26 @@ configfile: "config/config.yml"
 
 URL_SAMPLE = config['download_url_sample']
 URL_REF = config['download_url_ref']
+URL_LCR_FILE = config['download_lcr_url']
+
 TUMOR_NORMAL_PAIRS = config['tumor_normal_pairs']
 ALL_SAMPLES = [sample for pair in TUMOR_NORMAL_PAIRS.items() for sample in pair]
-REFERENCE_FILE = config['reference_file']
-REF_FILE_NAME = utils.remove_all_extensions(os.path.basename(REFERENCE_FILE))
+
 RAW_DATA_REF_DIR = config['raw_data_ref_dir']
 RAW_DATA_SAMPLE_DIR = config['raw_data_sample_dir']
-UNZIPPED_REF_FILE = f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.fa"
-REF_DICTIONARY = f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.dict"
 FASTQC_DIR = config['fastqc_dir']
 MINIMAP_DIR = config['minimap_dir']
 PICARD_DIR = config['picard_dir']
 MULTIQC_DIR = config['multiqc_dir']
 GATK_DIR = config['gatk_dir']
+
+REFERENCE_FILE = os.path.join(RAW_DATA_REF_DIR, os.path.basename(URL_REF))
+REF_FILE_NAME = utils.remove_all_extensions(os.path.basename(REFERENCE_FILE))
+LCR_FILE = os.path.join(RAW_DATA_REF_DIR, os.path.basename(URL_LCR_FILE))
+LCR_FILE_NAME = utils.remove_all_extensions(os.path.basename(LCR_FILE))
+UNZIPPED_REF_FILE = f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.fa"
+REF_DICTIONARY = f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.dict"
+
 
 rule all:
     input:
@@ -30,7 +37,8 @@ rule all:
         expand(f"{MULTIQC_DIR}/multiqc_report.html", sample=ALL_SAMPLES),
         f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.dict",
         #expand(f"{GATK_DIR}/{{sample}}.vcf", sample=ALL_SAMPLES)
-        expand(f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_snp_sift_filtered.vcf", tumor=TUMOR_NORMAL_PAIRS.keys(), normal=TUMOR_NORMAL_PAIRS.values())
+        expand(f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_passing_snp_sift_filtered.vcf", tumor=TUMOR_NORMAL_PAIRS.keys(), normal=TUMOR_NORMAL_PAIRS.values()),
+        f"{RAW_DATA_REF_DIR}/{LCR_FILE_NAME}.bed"
     #output:
      #   expand(f"{PICARD_DIR}/{{sample}}_align_summary_metrics.txt", sample=config['samples'])
 
@@ -134,13 +142,24 @@ rule variant_calling:
             --output {output.vcf_file}
         """
 
+rule download_LCR_file:
+    output: 
+        lcr_file_with_chr=f"{RAW_DATA_REF_DIR}/{LCR_FILE_NAME}_with_chr.bed",
+        lcr_file=f"{RAW_DATA_REF_DIR}/{LCR_FILE_NAME}.bed"
+    shell:
+        """
+        wget -O {output.lcr_file_with_chr}.gz {URL_LCR_FILE} 
+        gunzip -c {output.lcr_file_with_chr}.gz > {output.lcr_file_with_chr}
+        sed 's/^chr//g' {output.lcr_file_with_chr} > {output.lcr_file}
+        """
+
 rule variant_filtering:
     input: 
         UNZIPPED_REF_FILE,
         vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_raw.vcf"
     output:
         mutect_filtered_vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_mutect_filtered.vcf",
-        snp_sift_filtered_vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_snp_sift_filtered.vcf"
+        snp_sift_filtered_vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_passing_snp_sift_filtered.vcf"
     shell:
         """
         gatk FilterMutectCalls \
