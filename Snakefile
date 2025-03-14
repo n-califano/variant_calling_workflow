@@ -37,7 +37,7 @@ rule all:
         expand(f"{MULTIQC_DIR}/multiqc_report.html", sample=ALL_SAMPLES),
         f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.dict",
         #expand(f"{GATK_DIR}/{{sample}}.vcf", sample=ALL_SAMPLES)
-        expand(f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_passing_snp_sift_filtered.vcf", tumor=TUMOR_NORMAL_PAIRS.keys(), normal=TUMOR_NORMAL_PAIRS.values()),
+        expand(f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_passing_lcr_filtered.vcf", tumor=TUMOR_NORMAL_PAIRS.keys(), normal=TUMOR_NORMAL_PAIRS.values()),
         f"{RAW_DATA_REF_DIR}/{LCR_FILE_NAME}.bed"
     #output:
      #   expand(f"{PICARD_DIR}/{{sample}}_align_summary_metrics.txt", sample=config['samples'])
@@ -156,10 +156,12 @@ rule download_LCR_file:
 rule variant_filtering:
     input: 
         UNZIPPED_REF_FILE,
-        vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_raw.vcf"
+        vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_raw.vcf",
+        lcr_file=f"{RAW_DATA_REF_DIR}/{LCR_FILE_NAME}.bed"
     output:
         mutect_filtered_vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_mutect_filtered.vcf",
-        snp_sift_filtered_vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_passing_snp_sift_filtered.vcf"
+        pass_filtered_vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_passing_filtered.vcf",
+        lcr_filtered_vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_passing_lcr_filtered.vcf"
     shell:
         """
         gatk FilterMutectCalls \
@@ -167,8 +169,17 @@ rule variant_filtering:
             --variant {input.vcf_file} \
             --output {output.mutect_filtered_vcf_file}
 
+        # Keep only the SNP marked as PASS
         SnpSift filter \
             -noLog \
             "( FILTER = 'PASS' )" \
-            {output.mutect_filtered_vcf_file} > {output.snp_sift_filtered_vcf_file}
+            {output.mutect_filtered_vcf_file} > {output.pass_filtered_vcf_file}
+
+        # Filter out LCR (Low Complexity Regions)
+        SnpSift intervals \
+            -noLog \
+            -x \
+            -i {output.pass_filtered_vcf_file} \
+            {input.lcr_file} > {output.lcr_filtered_vcf_file}
         """
+
