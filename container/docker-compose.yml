@@ -1,0 +1,11 @@
+services:
+  variant-calling:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: variant-calling-container
+    volumes:
+      - ..\:/root/variant_calling
+    stdin_open: true  # Keeps the container open for interaction
+    tty: true  # Enables an interactive terminal
+    command: bash
