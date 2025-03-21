@@ -6,6 +6,8 @@ configfile: "config/config.yml"
 URL_SAMPLE = config['download_url_sample']
 URL_REF = config['download_url_ref']
 URL_LCR_FILE = config['download_lcr_url']
+URL_DBSNP_FILE = config['download_dbsnp_url']
+URL_DBSNP_TBI_FILE = config['download_dbsnp_tbi_url']
 
 TUMOR_NORMAL_PAIRS = config['tumor_normal_pairs']
 ALL_SAMPLES = [sample for pair in TUMOR_NORMAL_PAIRS.items() for sample in pair]
@@ -24,6 +26,8 @@ LCR_FILE = os.path.join(RAW_DATA_REF_DIR, os.path.basename(URL_LCR_FILE))
 LCR_FILE_NAME = utils.remove_all_extensions(os.path.basename(LCR_FILE))
 UNZIPPED_REF_FILE = f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.fa"
 REF_DICTIONARY = f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.dict"
+DBSNP_FILE = os.path.join(RAW_DATA_REF_DIR, os.path.basename(URL_DBSNP_FILE))
+DBSNP_FILE_NAME = utils.remove_all_extensions(os.path.basename(DBSNP_FILE))
 
 
 rule all:
@@ -38,7 +42,8 @@ rule all:
         f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.dict",
         #expand(f"{GATK_DIR}/{{sample}}.vcf", sample=ALL_SAMPLES)
         expand(f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_passing_lcr_filtered.vcf", tumor=TUMOR_NORMAL_PAIRS.keys(), normal=TUMOR_NORMAL_PAIRS.values()),
-        f"{RAW_DATA_REF_DIR}/{LCR_FILE_NAME}.bed"
+        f"{RAW_DATA_REF_DIR}/{LCR_FILE_NAME}.bed",
+        expand(f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_annotated.vcf", tumor=TUMOR_NORMAL_PAIRS.keys(), normal=TUMOR_NORMAL_PAIRS.values())
     #output:
      #   expand(f"{PICARD_DIR}/{{sample}}_align_summary_metrics.txt", sample=config['samples'])
 
@@ -181,5 +186,29 @@ rule variant_filtering:
             -x \
             -i {output.pass_filtered_vcf_file} \
             {input.lcr_file} > {output.lcr_filtered_vcf_file}
+        """
+
+rule download_dbsnp_file:
+    output: 
+        dbsnp_file=f"{RAW_DATA_REF_DIR}/{DBSNP_FILE_NAME}.vcf.gz"
+    shell:
+        """
+        wget -O {output.dbsnp_file} {URL_DBSNP_FILE} 
+        wget -O {output.dbsnp_file}.tbi {URL_DBSNP_TBI_FILE} 
+        """
+
+rule variant_annotation:
+    input: 
+        lcr_filtered_vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_passing_lcr_filtered.vcf"
+    output:
+        annotated_vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_annotated.vcf"
+    shell:
+        """
+        SnpSift annotate \
+            {DBSNP_FILE} \
+            -tabix \
+            -noLog \
+            {input.lcr_filtered_vcf_file} \
+            > {output.annotated_vcf_file}
         """
 
