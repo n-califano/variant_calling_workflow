@@ -1,7 +1,7 @@
 **/__pycache__/
 .snakemake/
 .gitconfig
-raw_data/ref_data/*.gz
+raw_data/ref_data/*.gz*
 raw_data/ref_data/*.dict
 raw_data/ref_data/*.fa*
 raw_data/ref_data/*.bed
