@@ -15,3 +15,4 @@ results/picard/*.txt
 results/multiqc/multiqc_data/
 results/multiqc/*.html
 results/gatk/*.vcf*
+results/prioritized_variants/*.txt
