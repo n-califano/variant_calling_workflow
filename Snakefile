@@ -9,8 +9,10 @@ URL_LCR_FILE = config['download_lcr_url']
 URL_DBSNP_FILE = config['download_dbsnp_url']
 URL_DBSNP_TBI_FILE = config['download_dbsnp_tbi_url']
 
+REF_GENOME_VERSION = config['ref_genome_version']
 TUMOR_NORMAL_PAIRS = config['tumor_normal_pairs']
 ALL_SAMPLES = [sample for pair in TUMOR_NORMAL_PAIRS.items() for sample in pair]
+FILTERS = config['prioritization_filters']
 
 RAW_DATA_REF_DIR = config['raw_data_ref_dir']
 RAW_DATA_SAMPLE_DIR = config['raw_data_sample_dir']
@@ -19,6 +21,7 @@ MINIMAP_DIR = config['minimap_dir']
 PICARD_DIR = config['picard_dir']
 MULTIQC_DIR = config['multiqc_dir']
 GATK_DIR = config['gatk_dir']
+PRIORITIZED_VARIANTS_DIR = config['prioritized_variant_dir']
 
 REFERENCE_FILE = os.path.join(RAW_DATA_REF_DIR, os.path.basename(URL_REF))
 REF_FILE_NAME = utils.remove_all_extensions(os.path.basename(REFERENCE_FILE))
@@ -41,9 +44,9 @@ rule all:
         expand(f"{MULTIQC_DIR}/multiqc_report.html", sample=ALL_SAMPLES),
         f"{RAW_DATA_REF_DIR}/{REF_FILE_NAME}.dict",
         #expand(f"{GATK_DIR}/{{sample}}.vcf", sample=ALL_SAMPLES)
-        expand(f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_passing_lcr_filtered.vcf", tumor=TUMOR_NORMAL_PAIRS.keys(), normal=TUMOR_NORMAL_PAIRS.values()),
+        #expand(f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_passing_lcr_filtered.vcf", tumor=TUMOR_NORMAL_PAIRS.keys(), normal=TUMOR_NORMAL_PAIRS.values()),
         f"{RAW_DATA_REF_DIR}/{LCR_FILE_NAME}.bed",
-        expand(f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_annotated.vcf", tumor=TUMOR_NORMAL_PAIRS.keys(), normal=TUMOR_NORMAL_PAIRS.values())
+        expand(f"{PRIORITIZED_VARIANTS_DIR}/{{tumor}}_vs_{{normal}}_prioritized_variants_{{filter_idx}}.txt", tumor=TUMOR_NORMAL_PAIRS.keys(), normal=TUMOR_NORMAL_PAIRS.values(), filter_idx=range(len(FILTERS)))
     #output:
      #   expand(f"{PICARD_DIR}/{{sample}}_align_summary_metrics.txt", sample=config['samples'])
 
@@ -200,15 +203,47 @@ rule download_dbsnp_file:
 rule variant_annotation:
     input: 
         lcr_filtered_vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_passing_lcr_filtered.vcf"
+    params:
+        annotated_vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_annotated.vcf",
+        lcr_filtered_vcf_file_remapped_chr=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_passing_lcr_filtered_remapped_chr.vcf"
     output:
-        annotated_vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_annotated.vcf"
+        annotated_dbsnp_vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_annotated.dbsnp.vcf"
     shell:
         """
+        # Remap chromosomes names to match the REF_GENOME_VERSION
+        bcftools annotate --rename-chrs {GATK_DIR}/rename_chrs.txt \
+            -o {params.lcr_filtered_vcf_file_remapped_chr} {input.lcr_filtered_vcf_file}
+
+        # Annotate with SnpEff for functional effect predictions
+        snpEff -Xmx8G {REF_GENOME_VERSION} \
+            -noLog -v \
+            {params.lcr_filtered_vcf_file_remapped_chr} \
+            > {params.annotated_vcf_file}
+
+        # Add dbSNP annotations with SnpSift
         SnpSift annotate \
             {DBSNP_FILE} \
             -tabix \
             -noLog \
-            {input.lcr_filtered_vcf_file} \
-            > {output.annotated_vcf_file}
+            {params.annotated_vcf_file} \
+            > {output.annotated_dbsnp_vcf_file}
         """
 
+rule variant_prioritization:
+    input:
+        annotated_dbsnp_vcf_file=f"{GATK_DIR}/{{tumor}}_vs_{{normal}}_annotated.dbsnp.vcf"
+    params:
+        filt=lambda wildcards: FILTERS[int(wildcards.filter_idx)]
+    output:
+        prioritized_variants_file=f"{PRIORITIZED_VARIANTS_DIR}/{{tumor}}_vs_{{normal}}_prioritized_variants_{{filter_idx}}.txt"
+    shell:
+        """
+        SnpSift filter \
+            -noLog \
+            "{params.filt}"  \
+            {input.annotated_dbsnp_vcf_file} | \
+        #next line resolves dynamically path of vcfEffOnePerLine script based on location of SnpSift binary
+        "$(find $(dirname $(readlink -f $(which SnpSift))) -name 'vcfEffOnePerLine.pl')" | \
+        SnpSift extractFields - "CHROM" "POS" "ANN[*].GENE" "ANN[*].EFFECT" \
+        > {output.prioritized_variants_file}
+        """
