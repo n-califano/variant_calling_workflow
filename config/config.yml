@@ -3,10 +3,14 @@ download_url_ref: "https://hgdownload.soe.ucsc.edu/goldenPath/hg38/hg38Patch7/hg
 download_lcr_url: "https://github.com/lh3/varcmp/raw/refs/heads/master/scripts/LCR-hs38.bed.gz"
 download_dbsnp_url: "https://ftp.ncbi.nih.gov/snp/organisms/human_9606/VCF/00-common_all.vcf.gz"
 download_dbsnp_tbi_url: "https://ftp.ncbi.nih.gov/snp/organisms/human_9606/VCF/00-common_all.vcf.gz.tbi"
+ref_genome_version: "hg38"
 tumor_normal_pairs:
   "SRR12300605_1": "SRR17674714_1"
   #"CPCT12345678R_AHHKYHDSXX_S13_L001_R1_001": "CPCT12345678R_HJJLGCCXX_S1_L001_R1_001"
   #"CPCT12345678R_AHHKYHDSXX_S13_L001_R2_001": "CPCT12345678R_HJJLGCCXX_S1_L001_R2_001"
+prioritization_filters: [
+    "( CHROM = '2' ) & ( ANN[*].IMPACT has 'MODERATE' )",
+    "( CHROM = 'X' ) & ( ANN[*].IMPACT has 'HIGH' )"]
 raw_data_sample_dir: "raw_data/sample_data"
 raw_data_ref_dir: "raw_data/ref_data"
 fastqc_dir: "results/fastqc"
@@ -14,3 +18,4 @@ minimap_dir: "results/minimap"
 picard_dir: "results/picard"
 multiqc_dir: "results/multiqc"
 gatk_dir: "results/gatk"
+prioritized_variant_dir: "results/prioritized_variants"
